@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Limodor Airodor Lüfter",
+        "description": "IP-Adresse oder Hostname des Lüfters im lokalen Netzwerk.",
+        "data": { "name": "Name", "host": "Host / IP-Adresse" }
+      }
+    },
+    "error": { "cannot_connect": "Keine Verbindung zum Lüfter (STA-Abfrage fehlgeschlagen)." },
+    "abort": { "already_configured": "Dieser Lüfter ist bereits eingerichtet." }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Einstellungen",
+        "data": { "scan_interval": "Abfrageintervall (Sekunden)" }
+      }
+    }
+  }
+}

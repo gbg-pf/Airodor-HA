@@ -1,0 +1,16 @@
+set_humidity_program:
+  name: Feuchte-Programm (P1) setzen
+  description: "Experimentell: aktiviert Programm 1 (SP1). Läuft ab der Feuchte-Schwelle mit Richtung/Volumen."
+  fields:
+    entry_id: { name: Eintrag, required: false, selector: { text: {} } }
+    threshold: { name: Schwelle rF %, required: true, example: 65, selector: { number: { min: 0, max: 99 } } }
+    direction: { name: Richtung, required: true, selector: { select: { options: [alternating, exhaust, supply] } } }
+    volume: { name: Volumenstrom, required: true, selector: { select: { options: [min, med, max] } } }
+set_temperature_program:
+  name: Temperatur-Programm (P2) setzen
+  description: "Experimentell: aktiviert Programm 2 (SP2)."
+  fields:
+    entry_id: { name: Eintrag, required: false, selector: { text: {} } }
+    threshold: { name: Schwelle °C, required: true, example: 18, selector: { number: { min: 0, max: 99 } } }
+    direction: { name: Richtung, required: true, selector: { select: { options: [alternating, exhaust, supply] } } }
+    volume: { name: Volumenstrom, required: true, selector: { select: { options: [min, med, max] } } }

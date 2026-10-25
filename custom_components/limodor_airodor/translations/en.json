@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Limodor Airodor Lüfter",
+        "description": "IP address or hostname of the fan on your local network.",
+        "data": {
+          "name": "Name",
+          "host": "Host / IP address"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot reach the fan (STA request failed)."
+    },
+    "abort": {
+      "already_configured": "This fan is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  }
+}
