@@ -1,4 +1,4 @@
-"""Sensoren: Temperatur, Feuchte, absolute Feuchte, Taupunkt, Programm, Stummrest."""
+"""Sensoren: Temperatur, Feuchte, absolute Feuchte, Taupunkt, Programmwerte, Stummrest."""
 from __future__ import annotations
 
 import math
@@ -18,7 +18,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import LimodorCoordinator
 from .api import LimodorState
-from .const import DIRECTIONS, DOMAIN, PROGRAM_DEFS, PROGRAMS, VOLUME_NAMES
+from .const import DIRECTIONS, DOMAIN, NO_PROGRAM, PROGRAM_DEFS, VOLUME_NAMES
 from .entity import LimodorEntity
 
 
@@ -76,14 +76,6 @@ SENSORS: tuple[LimodorSensorDescription, ...] = (
         value_fn=lambda s: dew_point(s.temperature, s.humidity),
     ),
     LimodorSensorDescription(
-        key="program",
-        name="Programm",
-        device_class=SensorDeviceClass.ENUM,
-        options=list(PROGRAMS.values()),
-        icon="mdi:robot",
-        value_fn=lambda s: PROGRAMS.get(s.program),
-    ),
-    LimodorSensorDescription(
         key="mute_remaining",
         name="Stummmodus Restzeit",
         device_class=SensorDeviceClass.DURATION,
@@ -99,9 +91,7 @@ async def async_setup_entry(
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
     entities = [LimodorSensor(coordinator, d) for d in SENSORS]
-    for prefix in PROGRAM_DEFS:
-        for kind in ("threshold", "direction", "volume"):
-            entities.append(LimodorProgramSensor(coordinator, prefix, kind))
+    entities.extend(LimodorActiveProgramSensor(coordinator, kind) for kind in _KINDS)
     async_add_entities(entities)
 
 
@@ -119,40 +109,43 @@ class LimodorSensor(LimodorEntity, SensorEntity):
         return self.entity_description.value_fn(self.coordinator.data)
 
 
-PROGRAM_NUMBER = {"SP1": 1, "SP2": 2}  # Wert in Stelle 1 der STA-Antwort
-_KIND_LABEL = {"threshold": "Schwelle", "direction": "Richtung", "volume": "Volumenstrom"}
-_KIND_ICON = {
-    "threshold": "mdi:tune",
-    "direction": "mdi:swap-vertical",
-    "volume": "mdi:fan-speed-2",
+_KINDS = {
+    "threshold": ("Schwelle", "mdi:tune"),
+    "direction": ("Richtung", "mdi:swap-vertical"),
+    "volume": ("Volumenstrom", "mdi:fan-speed-2"),
 }
 
 
-class LimodorProgramSensor(LimodorEntity, SensorEntity):
-    """Wirksame Programmwerte; "Inaktiv", solange das Programm nicht läuft.
+class LimodorActiveProgramSensor(LimodorEntity, SensorEntity):
+    """Werte des gerade laufenden Programms (Feuchte oder Temperatur); sonst "--".
 
     Der Lüfter meldet die Werte nicht zurück. Angezeigt werden die zuletzt aus
-    Home Assistant gesendeten Werte ("Unbekannt", falls das Programm anderweitig
-    gestartet wurde).
+    Home Assistant gesendeten Werte ("Unbekannt", falls das Programm noch nie aus
+    Home Assistant gestartet wurde).
     """
 
-    def __init__(self, coordinator: LimodorCoordinator, prefix: str, kind: str) -> None:
-        super().__init__(coordinator, f"{prefix}_{kind}_active")
-        self._prefix = prefix
+    def __init__(self, coordinator: LimodorCoordinator, kind: str) -> None:
+        super().__init__(coordinator, f"active_{kind}")
         self._kind = kind
-        self._attr_name = f"{PROGRAM_DEFS[prefix][0]} {_KIND_LABEL[kind]} (aktiv)"
-        self._attr_icon = _KIND_ICON[kind]
+        label, icon = _KINDS[kind]
+        self._attr_name = f"Aktives Programm {label}"
+        self._attr_icon = icon
 
     @property
     def native_value(self) -> str:
-        if self.coordinator.data.program != PROGRAM_NUMBER[self._prefix]:
-            return "Inaktiv"
-        applied = self.coordinator.applied_programs.get(self._prefix)
-        if not applied:
+        prefix = self.coordinator.active_prefix
+        if prefix is None:
+            return NO_PROGRAM
+        if prefix not in self.coordinator.applied:
             return "Unbekannt"
-        value = applied[self._kind]
+        value = self.coordinator.program_settings[prefix][self._kind]
         if self._kind == "direction":
             return DIRECTIONS.get(value, "Unbekannt")
         if self._kind == "volume":
             return VOLUME_NAMES.get(value, "Unbekannt")
-        return f"{value} {PROGRAM_DEFS[self._prefix][1]}"
+        return f"{value} {PROGRAM_DEFS[prefix][1]}"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        prefix = self.coordinator.active_prefix
+        return {"programm": PROGRAM_DEFS[prefix][0]} if prefix else {}

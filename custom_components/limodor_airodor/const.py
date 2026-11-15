@@ -39,7 +39,15 @@ MAX_MUTE_HOURS = 24
 
 # Automatik-Programme: Befehlspräfix -> (Anzeigename, Einheit, Min, Max)
 PROGRAM_DEFS = {
-    "SP1": ("Feuchte-Programm", "%", 30, 90),
-    "SP2": ("Temperatur-Programm", "°C", 5, 35),
+    "SP1": ("Feuchte", "%", 30, 90),
+    "SP2": ("Temperatur", "°C", 5, 35),
 }
+# Wert in Stelle 1 der STA-Antwort, wenn das Programm läuft
+PROGRAM_NUMBER = {"SP1": 1, "SP2": 2}
+
+PROGRAM_MANUAL = "Manuell"
+PROGRAM_OPTIONS = [PROGRAM_MANUAL] + [d[0] for d in PROGRAM_DEFS.values()]
+PROGRAM_PREFIX_BY_NAME = {d[0]: p for p, d in PROGRAM_DEFS.items()}
+
 PROGRAM_VOLUME_NAMES = {k: v for k, v in VOLUME_NAMES.items() if k != VOL_OFF}
+NO_PROGRAM = "--"

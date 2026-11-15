@@ -1,32 +1,50 @@
-"""Auswahl der Richtung (Wechsel / Abluft / Zuluft) im manuellen Modus."""
+"""Auswahlfelder: Richtung/Volumenstrom (manuell), Programm und Programm-Einstellungen."""
 from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import LimodorCoordinator
-from .const import DIRECTIONS, DOMAIN, PROGRAM_DEFS, PROGRAM_VOLUME_NAMES, VOLUME_NAMES
+from .const import (
+    DIRECTIONS,
+    DOMAIN,
+    PROGRAM_DEFS,
+    PROGRAM_MANUAL,
+    PROGRAM_NUMBER,
+    PROGRAM_OPTIONS,
+    PROGRAM_PREFIX_BY_NAME,
+    PROGRAM_VOLUME_NAMES,
+    VOLUME_NAMES,
+)
 from .entity import LimodorEntity
 
-_BY_NAME = {name: code for code, name in DIRECTIONS.items()}
+_DIR_BY_NAME = {name: code for code, name in DIRECTIONS.items()}
 _VOL_BY_NAME = {name: code for code, name in VOLUME_NAMES.items()}
+_PROGRAM_NAME_BY_NUMBER = {
+    PROGRAM_NUMBER[prefix]: d[0] for prefix, d in PROGRAM_DEFS.items()
+}
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = [LimodorDirectionSelect(coordinator), LimodorVolumeSelect(coordinator)]
-    for prefix in PROGRAM_DEFS:
-        entities.append(LimodorProgramSelect(coordinator, prefix, "direction"))
-        entities.append(LimodorProgramSelect(coordinator, prefix, "volume"))
-    async_add_entities(entities)
+    async_add_entities(
+        [
+            LimodorDirectionSelect(coordinator),
+            LimodorVolumeSelect(coordinator),
+            LimodorProgramSelect(coordinator),
+            LimodorProgramSettingSelect(coordinator, "direction"),
+            LimodorProgramSettingSelect(coordinator, "volume"),
+        ]
+    )
 
 
 class LimodorDirectionSelect(LimodorEntity, SelectEntity):
+    """Richtung im manuellen Modus."""
+
     _attr_name = "Richtung"
     _attr_icon = "mdi:swap-vertical"
     _attr_options = list(DIRECTIONS.values())
@@ -40,11 +58,13 @@ class LimodorDirectionSelect(LimodorEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.async_set_manual(
-            _BY_NAME[option], self.coordinator.data.volume
+            _DIR_BY_NAME[option], self.coordinator.data.volume
         )
 
 
 class LimodorVolumeSelect(LimodorEntity, SelectEntity):
+    """Volumenstrom im manuellen Modus."""
+
     _attr_name = "Volumenstrom"
     _attr_icon = "mdi:fan-speed-2"
     _attr_options = list(VOLUME_NAMES.values())
@@ -62,34 +82,58 @@ class LimodorVolumeSelect(LimodorEntity, SelectEntity):
         )
 
 
-class LimodorProgramSelect(LimodorEntity, SelectEntity, RestoreEntity):
-    """Richtung bzw. Volumenstrom eines Automatik-Programms (in HA gemerkt)."""
+class LimodorProgramSelect(LimodorEntity, SelectEntity):
+    """Aktuelles Programm anzeigen und wechseln (Manuell / Feuchte / Temperatur).
 
-    def __init__(self, coordinator: LimodorCoordinator, prefix: str, kind: str) -> None:
-        super().__init__(coordinator, f"{prefix}_{kind}")
-        self._prefix = prefix
+    Beim Wechsel werden zuerst alle laufenden Programme gestoppt.
+    """
+
+    _attr_name = "Programm"
+    _attr_icon = "mdi:robot"
+    _attr_options = PROGRAM_OPTIONS
+
+    def __init__(self, coordinator: LimodorCoordinator) -> None:
+        super().__init__(coordinator, "program_select")
+
+    @property
+    def current_option(self) -> str | None:
+        program = self.coordinator.data.program
+        if program == 0:
+            return PROGRAM_MANUAL
+        return _PROGRAM_NAME_BY_NUMBER.get(program)  # CO2/Zeit/Zentrale: unbekannt
+
+    async def async_select_option(self, option: str) -> None:
+        if option == PROGRAM_MANUAL:
+            await self.coordinator.async_stop_programs()
+        else:
+            await self.coordinator.async_start_program(PROGRAM_PREFIX_BY_NAME[option])
+
+
+class LimodorProgramSettingSelect(LimodorEntity, SelectEntity):
+    """Richtung/Volumenstrom des aktiven (bzw. zuletzt gewählten) Programms.
+
+    Läuft das Programm, wird die Änderung sofort an den Lüfter gesendet.
+    """
+
+    def __init__(self, coordinator: LimodorCoordinator, kind: str) -> None:
+        super().__init__(coordinator, f"program_setting_{kind}")
         self._kind = kind
         names = DIRECTIONS if kind == "direction" else PROGRAM_VOLUME_NAMES
+        self._names = names
         self._codes = {name: code for code, name in names.items()}
         self._attr_options = list(names.values())
         label = "Richtung" if kind == "direction" else "Volumenstrom"
-        self._attr_name = f"{PROGRAM_DEFS[prefix][0]} {label}"
+        self._attr_name = f"Programm-Einstellung {label}"
         self._attr_icon = "mdi:swap-vertical" if kind == "direction" else "mdi:fan-speed-2"
-        self._attr_current_option = names[coordinator.program_settings[prefix][kind]]
 
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        last = await self.async_get_last_state()
-        if last is not None and last.state in self._codes:
-            self._attr_current_option = last.state
-        self._store()
+    @property
+    def current_option(self) -> str | None:
+        prefix = self.coordinator.settings_prefix
+        return self._names.get(self.coordinator.program_settings[prefix][self._kind])
 
-    def _store(self) -> None:
-        self.coordinator.program_settings[self._prefix][self._kind] = self._codes[
-            self._attr_current_option
-        ]
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        return {"programm": PROGRAM_DEFS[self.coordinator.settings_prefix][0]}
 
     async def async_select_option(self, option: str) -> None:
-        self._attr_current_option = option
-        self._store()
-        self.async_write_ha_state()
+        await self.coordinator.async_update_setting(self._kind, self._codes[option])

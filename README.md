@@ -18,17 +18,24 @@ Lokale Home-Assistant-Integration für den Wohnraum-/Kellerlüfter **Limodor Air
 | **Lüfter** (`fan`) | Ein/Aus und Volumenstrom in 3 Stufen (Minimal 33 % · Mittel 66 % · Maximal 100 %) |
 | **Richtung** (`select`) | Wechsel (Ab-/Zuluft im Wechsel) · Abluft · Zuluft |
 | **Volumenstrom** (`select`) | Aus · Minimal · Mittel · Maximal |
-| **Automatiken stoppen** (`button`) | Beendet die Automatikprogramme des Lüfters |
+| **Programm** (`select`) | Zeigt das aktuelle Programm (Manuell · Feuchte · Temperatur) und wechselt es. Beim Wechsel werden zuerst alle laufenden Programme gestoppt. „Manuell“ stoppt alle Automatiken. |
+| **Programm-Einstellung** Schwelle · Richtung · Volumenstrom (`number`, `select`) | Einstellungen des laufenden Programms (bzw. des zuletzt gewählten); Einheit der Schwelle folgt dem Programm (% rF / °C) |
+| **Aktives Programm** Schwelle · Richtung · Volumenstrom (`sensor`) | Werte des laufenden Programms, sonst `--` |
 | **Normalbetrieb (Abluft, minimal)** (`button`) | Automatiken stoppen und Abluft/minimal setzen |
 | **Stummmodus** (`number`) | Stummmodus in Stunden (0 = beenden, max. 24) |
-| **Feuchte-/Temperatur-Programm** (`number`, `select`, `button`) | Schwelle, Richtung und Volumenstrom einstellen und das Programm per Button aktivieren |
-| **Programm-Anzeige** (`sensor`) | Je Programm Schwelle, Richtung und Volumenstrom „(aktiv)“: zeigt die gesendeten Werte, solange das Programm läuft, sonst **Inaktiv** (bzw. *Unbekannt*, wenn es anderweitig gestartet wurde) |
-| **Sensoren** | Temperatur · Luftfeuchtigkeit · Absolute Feuchte (g/m³) · Taupunkt · aktives Programm · Stummmodus-Restzeit |
+| **Sensoren** | Temperatur · Luftfeuchtigkeit · Absolute Feuchte (g/m³) · Taupunkt · Stummmodus-Restzeit |
 
 Jede manuelle Einstellung (Lüfter, Richtung, Volumenstrom) beendet zuerst laufende Automatiken, damit der gewünschte Zustand sicher gilt.
 
+> **Update von früheren Versionen:** Die bisherigen Entitäten „Feuchte-/Temperatur-Programm …“, „Automatiken stoppen“ und der Sensor „Programm“ werden beim ersten Start automatisch entfernt. Eigene Dashboards/Automationen, die sie verwenden, bitte anpassen.
+
 ### Automatik-Programme
-Der Lüfter kennt ein Feuchte-Programm (P1) und ein Temperatur-Programm (P2). Die Einstellungen kann der Lüfter **nicht zurückmelden**: Home Assistant merkt sich Schwelle, Richtung und Volumenstrom selbst (auch nach Neustart) und sendet sie erst beim Drücken von **„… aktivieren“**. Beenden: „Automatiken stoppen“ oder eine manuelle Einstellung.
+Der Lüfter kennt ein Feuchte-Programm (P1) und ein Temperatur-Programm (P2). Die Einstellungen kann der Lüfter **nicht zurückmelden**: Home Assistant merkt sich Schwelle, Richtung und Volumenstrom je Programm selbst (auch nach Neustart).
+
+- **Starten/Wechseln:** im Feld **Programm** Feuchte oder Temperatur wählen. Laufende Programme werden zuvor gestoppt, dann startet das gewählte mit den gemerkten Werten (Standard: Feuchte 65 %, Temperatur 18 °C, jeweils Abluft/Mittel).
+- **Anpassen:** Die drei **Programm-Einstellungen** gelten für das laufende Programm. Änderungen werden sofort an den Lüfter gesendet. Läuft kein Programm (Manuell), gelten sie für das zuletzt gewählte Programm (siehe Attribut `programm`) und werden erst beim nächsten Start gesendet.
+- **Anzeige:** Die Sensoren **Aktives Programm …** zeigen die Werte des laufenden Programms, sonst `--`. `Unbekannt` bedeutet, dass das Programm noch nie aus Home Assistant gestartet wurde und die Werte daher nicht bekannt sind.
+- **Beenden:** „Manuell“ wählen oder eine manuelle Einstellung (Lüfter, Richtung, Volumenstrom) vornehmen.
 
 Zusätzlich gibt es die Dienste `limodor_airodor.set_humidity_program` und `limodor_airodor.set_temperature_program` (Schwelle, Richtung, Volumenstrom) für Automationen.
 
